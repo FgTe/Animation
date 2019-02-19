@@ -1,0 +1,22 @@
+{
+  "name": "animation",
+  "version": "1.0.0",
+  "description": "An animation helper",
+  "main": "Animation.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FgTe/Animation.git"
+  },
+  "keywords": [
+    "animation"
+  ],
+  "author": "FgTe",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/FgTe/Animation/issues"
+  },
+  "homepage": "https://github.com/FgTe/Animation#readme"
+}
