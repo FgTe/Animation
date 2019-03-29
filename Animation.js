@@ -1,124 +1,163 @@
 class FTAnimation {
-    static mapValueRegEx = /(\d+)(px|rem|em|%|pc)?/
+    static mapValueRegEx = /(\d+(?:\.\d+)?)(px|rem|em|%|pc)?/
     constructor (props) {
         this.object = props.object;
-        this.effect = props.effect;
-        this.runTime = props.runTime || 350;
-        if ( typeof props.movement == 'function' ) {
-            this.movement = props.movement;
+        this.property = props.property;
+        this.duration = props.duration || 350;
+        if ( typeof props.easing === 'function' ) {
+            this.easing = props.easing;
         }
-        if ( typeof props.specificity == 'function' ) {
-            this.specificity = props.specificity;
+        if ( typeof props.interpolation === 'function' ) {
+            this.interpolation = props.interpolation;
         }
-
+        if ( typeof props.callback === 'function' ) {
+            this.callback = props.callback;
+        }
         this.queue = [];
         this.running = false;
-        this.runTimeID = null;
+        this.durationID = null;
+        this.delayID = null;
+        this.end = false;
         this.run = this.run.bind(this);
     }
-    createKeyfram (props) {
-        let mappedEndValue = FTAnimation.mapValueRegEx.exec(props.end),
+    _createKeyfram (props) {
+        let object = props.object || this.object,
+            property = props.property || this.property,
+            mappedStartValue = FTAnimation.mapValueRegEx.exec(props.start === undefined ? object[property] : props.start),
+            start = +mappedStartValue[1],
+            mappedEndValue = FTAnimation.mapValueRegEx.exec(props.end),
             end = +mappedEndValue[1],
             unit = mappedEndValue[2] || '',
-            effect = props.effect || this.effect,
-            object = props.object || this.object,
-            start = props.start === undefined ? object[effect] : props.start,
-            mappedStartValue = FTAnimation.mapValueRegEx.exec(start),
-            runTime = props.runTime || this.runTime,
-            travel = props.end - start,
+            duration = props.duration || this.duration,
             loop = props.loop || 1,
-            infinite = props.infinite || false;
-        start = +mappedStartValue[0];
+            infinite = props.infinite || false,
+            delay = props.delay || 0;
         if ( mappedEndValue[2] != mappedStartValue[2] ) {
-
         }
         let keyfram = {
             object,
-            effect,
+            property,
             start,
-            travel,
-            unit,
-            runTime,
             end,
+            unit,
+            duration,
             loop,
             infinite,
-            started: false,
-            startTime: null
+            delay,
+            _travel: end - start,
+            _started: false,
+            _startTime: null,
+            _progress: 0,
+            _times: 0
         };
-        if ( typeof props.movement == 'function' ) {
-            keyfram.movement = props.movement;
-        } else if ( this.movement ) {
-            keyfram.movement = this.movement;
+        if ( typeof props.beforeStart === 'function' ) {
+            keyfram.beforeStart = props.beforeStart;
         }
-        if ( typeof props.specificity == 'function' ) {
-            keyfram.specificity = props.specificity;
-        } else if ( this.specificity ) {
-            keyfram.specificity = this.specificity;
+        if ( typeof props.easing === 'function' ) {
+            keyfram.easing = props.easing;
+        } else if ( this.easing ) {
+            keyfram.easing = this.easing;
         }
-        if ( typeof props.callback == 'function' ) {
+        if ( typeof props.interpolation === 'function' ) {
+            keyfram.interpolation = props.interpolation;
+        } else if ( this.interpolation ) {
+            keyfram.interpolation = this.interpolation;
+        }
+        if ( typeof props.callback === 'function' ) {
             keyfram.callback = props.callback;
+        } else if ( this.callback ) {
+            keyfram.callback = this.callback;
         }
-        this.queue.push(keyfram);
         return keyfram;
     }
+    createKeyfram (props) {
+        this.queue.push(this._createKeyfram(props));
+    }
     reset (props) {
-        if ( this.running ) {
-            this.queue[0] = this.createKeyfram(props);
+        if ( this.running && this.queue ) {
+            this.queue[0] = this._createKeyfram(props);
         } else {
             this.step(props);
         }
     }
     step (props) {
-        this.queue.push(this.createKeyfram(props));
+        this.queue && this.createKeyfram(props);
         if ( !this.running ) {
-            this.run();
+            this.start();
         }
     }
     stop () {
-        clearTimeout(this.runTimeID);
         this.stoped = true;
     }
     start () {
         this.stoped = false;
-        this.running || this.run();
+        if ( !this.running ) {
+            this.run();
+        }
     }
     end () {
-        this.run(true);
+        this.end = true;
     }
-    run (end) {
+    destroy () {
+        clearTimeout(this.delayID);
+        cancelAnimationFrame(this.durationID);
+        this.object = null;
+        this.property = null;
+        this.duration = null;
+        this.easing = null;
+        this.interpolation = null;
+        this.queue = null;
+        this.running = null;
+        this.durationID = null;
+        this.delayID = null;
+        this.end = null;
+        this.run = null;
+    }
+    run () {
         if ( this.queue.length ) {
             this.running = true;
             let keyfram = this.queue[0];
-            if ( !keyfram.started ) {
-                keyfram.started = true;
-                keyfram.startTime = Date.now();
+            if ( !keyfram._started ) {
+                keyfram._started = true;
+                keyfram._startTime = Date.now() - keyfram._progress * keyfram.duration;
+                keyfram._progress = 0;
+                if ( keyfram.delay ) {
+                    keyfram._startTime = keyfram._startTime + keyfram.delay;
+                    this.delayID = setTimeout(() => { keyfram.beforeStart && keyfram.beforeStart(); this.run(); }, keyfram.delay);
+                    return;
+                } else {
+                    keyfram.beforeStart && keyfram.beforeStart();
+                }
             }
-            let passedTime = Date.now() - keyfram.startTime;
-            passedTime = passedTime > keyfram.runTime || end ? keyfram.runTime : passedTime;
-            let travel = keyfram.travel * passedTime / keyfram.runTime;
-            let current = keyfram.start + ( keyfram.movement ? keyfram.movement(passedTime, keyfram.runTime, keyfram.travel) : travel );
-            if ( keyfram.specificity ) {
-                keyfram.object[keyfram.effect] = keyfram.specificity(current);
+            let passedTime = Date.now() - keyfram._startTime;
+            passedTime = passedTime > keyfram.duration || this.end ? keyfram.duration : passedTime;
+            let progress = passedTime / keyfram.duration;
+            let travel = keyfram._travel * progress;
+            let current = keyfram.start + ( keyfram.easing ? keyfram.easing(passedTime, keyfram.duration, keyfram._travel) : travel );
+            if ( keyfram.interpolation ) {
+                let interpolation = keyfram.interpolation(current, progress);
+                keyfram.object[keyfram.property] = interpolation === undefined ? current + keyfram.unit : interpolation;
             } else {
-                keyfram.object[keyfram.effect] = current + keyfram.unit;
+                keyfram.object[keyfram.property] = current + keyfram.unit;
             }
             if ( !this.stoped ) {
-                if ( passedTime == keyfram.runTime ) {
-                    keyfram.callback && keyfram.callback();
-                    if ( keyfram.infinite ) {
-                        keyfram.started = false;
-                    } else if ( keyfram.times ) {
-                        keyfram.times--;
+                if ( passedTime === keyfram.duration ) {
+                    if ( keyfram.infinite && !this.end ) {
+                        keyfram._started = false;
+                    } else if ( keyfram._times < keyfram.loop && !this.end ) {
+                        keyfram._times++;
                     } else {
+                        keyfram.callback && keyfram.callback();
                         this.queue.shift();
                     }
                 }
-                this.runTimeID = setTimeout(this.run, 24);
+                this.durationID = requestAnimationFrame(this.run);
             } else {
-                keyfram.runTime = keyfram.runTime - passedTime;
-                keyfram.started = false;
+                keyfram._progress = progress;
+                keyfram._started = false;
             }
         } else {
+            this.end = false;
             this.running = false;
         }
     }
