@@ -32,8 +32,6 @@ class FTAnimation {
             loop = props.loop || 1,
             infinite = props.infinite || false,
             delay = props.delay || 0;
-        if ( mappedEndValue[2] != mappedStartValue[2] ) {
-        }
         let keyfram = {
             object,
             property,
